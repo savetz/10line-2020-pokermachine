@@ -1,0 +1,174 @@
+REM POKER MACHINE - KEVIN SAVETZ - DEC 27-28 2019
+
+REM Based on Jacks or Better poker machine.
+REM Press 1-5 to choose cards to hold, then any other key to replace non-held cards.
+
+REM Best hands for Jacks or Better:
+REM royal flush +650 (real game: 1250)
+REM royal straight +500 (not in real game)
+REM straight flush +350 (real game: 250)
+REM 4 of a kind +225 (real game: 125)
+REM full house +150 (real game: 30)
+REM flush +150 (real game: 25)
+REM straight +200 (real game: 20)
+REM 3 of a kind +150 (real game: 15)
+REM 2 pair +50 (real game: 10)
+REM pair of Jacks or better +5 (real game: 10)
+
+GR.0:POKE 752,1:REM SET UP SCREEN
+DIM D(9),U(53),C(13),W$(29),I$(1),H(5),F$(8),SUIT$(4),N$(13)
+F$="\00\CE\DB\DB\DB\DB\CE\00"
+
+B=DPEEK($600)-5:'money. minus 5 builds in the cost of the round.
+B=B+(45*(B<0)):'that is, IF(B<0) THEN B=50-5. 
+'Since there's not enough space to zero-out necessary variables if
+'we were to loop to play again, and we lose all variables at re-RUN:
+'we save user's money in page 6 where it's safe from BASIC.
+'On first run, cross our fingers that $600 is seeded
+'at 0, otherwise \_(ツ)_/
+?"$";B:?
+
+REM D - cards in shuffled order. This game only deals max 10 cards
+REM U - tracks whether card number in subscript has been shuffled in
+REM C - Counts number of each card in suit
+REM W$ - Win/loss text
+REM I$ - storage for INKEY$
+REM H - tracks which of the 5 card slots are Held
+REM F$ - custom character ("10")
+REM SUIT$ - control characters for suits
+REM N$(13) - card name characters (A thru K)
+
+SUIT$="\00\10\60\7B":'heart club diamond spade
+N$="A23456789#JQK":'one-character card names. '10' replaces #
+
+'Replace '#' with "10" character
+CH=(PEEK(106)-16)*256:MOVE 57344,CH,1024
+MOVE ADR(F$),CH+24,8:POKE 756,CH/256
+
+'SHUFFLE
+FOR X=0 TO 9:'Fill slots. Only slotting 10 cards is faster than 52.
+	N=0
+	WHILE N=0:'while we haven't found a card for this slot
+		NN=RAND(52):'which card might go in this slot?
+		IF (U(NN)=0):'if we haven't slotted this card yet
+			D(X)=NN:'slot now contains this card
+			U(NN)=1:'mark card as used in a slot
+			N=1:'move on to next card
+		ENDIF
+	WEND
+NEXT X
+
+REM FORCE CARDS FOR TESTING
+'D(0)=12
+'D(1)=12+13
+'D(2)=13+6
+'D(3)=13+13+6
+'D(4)=15
+
+FOR GO=1 TO 2:'Do the next part twice
+	'SHOW CARDS
+	FOR X=0 TO 4
+		'Show card name, suit, and the slot number
+		N=D(X) MOD 13+1:M=D(X) DIV 13+1:?N$(N,N);SUIT$(M,M);"  \1B\7F";X+1
+		'D(X) MOD 13+1 is the card number 1-13
+		'D(X) DIV 13+1 is the suit 1-4
+		'This is very clever.
+	NEXT X
+
+	IF(GO=1):'Choose hold cards, first time though only
+		WHILE QQ=0
+			POKE 764,255
+			WHILE I$=""
+				I$=INKEY$
+			WEND
+			POKE 764,255:I$=""
+			I=ASC(I$)-49
+			IF(I>=0 AND I<5)
+				H(I)=NOT H(I):'Toggle hold status for chosen slot
+				POS.9,I+2
+				IF(H(I)):?"HOLD":ELSE:?"    ":ENDIF
+			ELSE
+				QQ=1
+			ENDIF
+		WEND
+
+		'Replace cards that were not held. 'Every card has one potential replacement
+		FOR X=0 TO 4
+			D(X)=D(X+5*(1-H(X)))
+			'if held, D(X)=D(X), unchanged. if not, D(X)=D(X)+5
+			'or, more readably: IF(H(X)=0):D(X)=D(X+5):ENDIF
+		NEXT X 
+	ENDIF
+
+	POS.2,8*GO:'Show new cards under old cards	
+NEXT GO
+
+'Game is over, now see if it's a wining hand
+'Count each card type in the hand
+F=(D(0) DIV 13)+1:'F="is there a flush?" seed with 0th card suit
+FOR X=0 TO 4
+	N=D(X) MOD 13
+	C(N)=C(N)+1:'C(N) is how many of that card in the hand
+	'T is the maximum number of similar cards we've found
+	T=T+(C(N)-T)*(C(N)>T)
+	'or, more readably: IF (C(N)>T):T=C(N):ENDIF
+	F=((D(X) DIV 13)+1=F)*F:'if suit is not the same, set F to 0. I feel clever.
+NEXT X
+
+'Count pairs - how many sets of exactly 2 are in the hand?
+FOR X=0 TO 12
+	P=P+(C(X)=2)
+	'Or, IF (C(X)=2):P=P+1:ENDIF
+NEXT X
+
+'FULL HOUSE OR 3 OF A KIND OR 4 OF A KIND
+IF T>2:'really this is: IF T=3 OR T=4 becasue it can't be more
+	IF P:'If there's also a pair
+		W$="FULL HOUSE"
+		B=B+150			
+	ELSE
+		W$=STR$(T)
+		W$(2)=" OF A KIND":'msg is 3 or 4 of a kind
+		B=B+(T-1)*75
+	ENDIF
+ELSE:'max same cards T <= 2
+	IF ((C(10)=2) OR (C(11)=2) OR (C(12)=2) OR (C(0)=2))
+		W$="JACKS OR BETTER"
+		B=B+5
+	ENDIF
+	IF(P=2)
+		W$="2 PAIR"
+		B=B+50
+	ENDIF
+ENDIF
+
+C(13)=C(0):'Kludge to copy Ace to above King
+FOR X=0 TO 9
+	IF (C(X) AND C(X+1) AND C(X+2) AND C(X+3) AND C(X+4))
+		W$="STRAIGHT "
+		B=B+200
+		IF (X=9)
+			W$="ROYAL "
+			B=B+250
+		ENDIF
+	ENDIF
+NEXT X
+
+'Print win/loss message
+IF(W$="" AND F=0)
+	?"LOSE";
+ELSE
+	?W$;
+	IF F
+		?"FLUSH";
+		B=B+150
+	ENDIF
+ENDIF
+
+?:?"$";B
+DPOKE $600,B
+'Save $ on page 6 for next round
+
+'WAIT FOR KEYPRESS, PLAY AGAIN
+WHILE INKEY$="":WEND
+RUN
