@@ -1,6 +1,8 @@
 # 10line-pokermachine
 Poker Machine game in Turbo BASIC XL for Atari 8-bit. Entry for 2020 10-line BASIC contest
 
+![screenshot](pokermachine.png)
+
 My first entry for the 2020 10-line BASIC contest is a poker machine simulator written in TurboBASIC XL for the Atari 8-bit computer. At ten 120-character lines, it qualifies for the PUR-120 category. It is based on the common “Jacks Or Better” poker machine, although I changed the payouts to make it more fun and to conserve space.
 
 The game deals a hand of five playing cards. You can choose to “hold” any or all of the cards by pressing 1 though 5, then press any other key to replace the cards that you did not hold. (Held cards are not replaced.) It then calculates whether you’ve won, based on standard poker hands.
